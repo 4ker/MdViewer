@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Markdown Directory Viewer</title>
+</head>
+<style type="text/css">
+html,
+body {
+    height: 100%;
+}
+</style>
+<!-- <link rel="stylesheet" type="text/css" href="statics/bootstrap/css/bootstrap.min.css"> -->
+<link rel="stylesheet" type="text/css" href="http://cdn.bootcss.com/bootstrap/3.3.5/css/bootstrap.min.css">
+<script>
+// You can also require other files to run in this process
+require('./renderer.js')
+</script>
+
+<body>
+    <div class="container" style="width: 100%; height: 100%; margin: 0px;">
+        <div class="row" style="margin-top: 20px;">
+            <div class="col-md-12">
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="Working Directory..." id="WDir" value="">
+                    <span class="input-group-btn"><button class="btn btn-default" type="button" onclick="onChangeWorkingDirectory()">Open</button></span>
+                </div>
+            </div>
+        </div>
+        <div class="row" style="width: 100%; height: 100%; margin: 0px;">
+            <div class="col-md-3" style="height: 100%; margin-top: 30px;">
+                <div class="btn-group-vertical" role="group" aria-label="Vertical button group" id="fileList">
+                    <div id="tree"></div>
+                </div>
+            </div>
+            <div class="col-md-9" id="dataArea" style="height: 100%;">
+            </div>
+        </div>
+    </div>
+</body>
+<script type="text/javascript" src="statics/jquery/jquery.min.js"></script>
+<script type="text/javascript" src="statics/bootstrap/js/bootstrap.min.js"></script>
+<script type="text/javascript" src="statics/md2html/markdown-to-html.js"></script>
+<script type="text/javascript" src="statics/bootstrap-treeview/bootstrap-treeview.min.js"></script>
+<script>
+var fs = require('fs');
+var path = require('path');
+var workingDirectory = '';
+var softwareName = 'Markdown Directory Viewer';
+// /Users/jg/Desktop/workspace/JS/electron/docs-translations/
+function onChangeWorkingDirectory() {
+    workingDirectory = $('#WDir').val();
+    if ($('#WDir').val()[$('#WDir').val().length - 1] !== '/') {
+        workingDirectory = $('#WDir').val() + '/';
+    }
+    if (path.isAbsolute(workingDirectory) && fs.statSync(workingDirectory).isDirectory()) {
+        $('#WDir').val(workingDirectory);
+        $(document).attr("title", "Markdown Directory Viewer: " + workingDirectory);
+        fs.readdir(workingDirectory, 'utf-8', function(err, files) {
+            if (err) {
+                throw err;
+            }
+            var filesArray = [];
+            var dirsArray = [];
+            for (var i = files.length - 1; i >= 0; i--) {
+                var stats = fs.statSync(workingDirectory + files[i]);
+
+                if (stats.isFile() && path.extname(files[i]) == '.md') {
+                    filesArray.push({
+                        'text': files[i],
+                        'filepath': workingDirectory + files[i]
+                    });
+                } else if (stats.isDirectory()) {
+                    dirsArray.push(callback(workingDirectory + files[i] + '/'));
+                }
+            }
+            var dirStruct = dirsArray.concat(filesArray);
+            $('#tree').treeview({
+                data: dirStruct,
+                showBorder: false
+            });
+            $('#tree').treeview('collapseAll', {
+                silent: true
+            });
+            $('#tree').on('nodeSelected', function(event, data) {
+                if (data.filepath !== undefined) {
+                    loadFile(data.filepath);
+                }
+            });
+        });
+    } else {
+        alert('"' + $('#WDir').val() + '" is not a valid path');
+        workingDirectory = '';
+    }
+}
+
+function loadFile(fileName) {
+    process.myWorkingDirectory = path.dirname(fileName) + '/';
+    fs.readFile(fileName, 'utf-8', function(err, data) {
+        if (err) throw err;
+        markdownToHtml(data, document.getElementById('dataArea'));
+        $(document).attr("title", "Markdown Directory Viewer: " + fileName);
+    });
+}
+
+function onClickMDDataLink(elemt) {
+    loadFile(elemt.attributes["md-data-link"].nodeValue);
+}
+
+function callback(filepath) {
+    var files = fs.readdirSync(filepath, 'utf-8');
+
+    var filesArray = [];
+    var dirsArray = [];
+
+    for (var i = files.length - 1; i >= 0; i--) {
+        var stats = fs.statSync(filepath + files[i]);
+        if (stats.isFile() && path.extname(files[i]) == '.md') {
+            filesArray.push({
+                'text': files[i],
+                'filepath': filepath + files[i]
+            });
+        } else if (stats.isDirectory()) {
+            dirsArray.push(callback(filepath + files[i] + '/'));
+        }
+    }
+
+    var dirText = filepath.split('/')[filepath.split('/').length - 2];
+    var dirStruct = {
+        'text': dirText,
+        'nodes': dirsArray.concat(filesArray)
+    }
+    return dirStruct;
+}
+</script>
+
+</html>
